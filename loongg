@@ -1,0 +1,340 @@
+
+-- UniversalScript | Mobile Local Version
+local Players = game:GetService("Players")
+local UIS = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+
+local player = Players.LocalPlayer
+local flying = false
+local flySpeed = 60
+local currentTrack
+local bodyVelocity
+local bodyGyro
+local isMobile = UIS.TouchEnabled
+
+local forwardPressed = false
+local backwardPressed = false
+local leftPressed = false
+local rightPressed = false
+local upPressed = false
+local downPressed = false
+
+-- GUI
+local gui = Instance.new("ScreenGui")
+gui.Name = "UniversalScript"
+gui.ResetOnSpawn = false
+gui.Parent = player:WaitForChild("PlayerGui")
+
+local frame = Instance.new("Frame")
+frame.Size = UDim2.fromOffset(200, 280)
+frame.Position = UDim2.new(0, 10, 0.3, 0)
+frame.BackgroundColor3 = Color3.fromRGB(20,20,20)
+frame.BorderSizePixel = 2
+frame.Active = true
+frame.Draggable = true
+frame.Parent = gui
+
+local title = Instance.new("TextLabel")
+title.Size = UDim2.new(1,0,0,35)
+title.Text = "Universal Script"
+title.TextColor3 = Color3.new(1,1,1)
+title.BackgroundColor3 = Color3.fromRGB(40,40,40)
+title.Font = Enum.Font.GothamBold
+title.TextScaled = true
+title.Parent = frame
+
+local function button(parent,txt,y,h)
+    local b = Instance.new("TextButton")
+    b.Size = UDim2.new(1,-20,0,h or 40)
+    b.Position = UDim2.fromOffset(10,y)
+    b.Text = txt
+    b.TextScaled = true
+    b.BackgroundColor3 = Color3.fromRGB(45,100,170)
+    b.TextColor3 = Color3.new(1,1,1)
+    b.Parent = parent
+    return b
+end
+
+local flyBtn = button(frame,"FLY: OFF",45)
+local danceBtn = button(frame,"DANCES",93)
+local flingBtn = button(frame,"FLING ALL",141)
+local speedUp = button(frame,"SPEED +",189)
+local speedDown = button(frame,"SPEED -",237)
+
+-- Dance menu
+local danceMenu = Instance.new("Frame")
+danceMenu.Size = UDim2.fromOffset(200,350)
+danceMenu.Position = UDim2.new(0,220,0.2,0)
+danceMenu.BackgroundColor3 = Color3.fromRGB(25,25,25)
+danceMenu.Visible = false
+danceMenu.Active = true
+danceMenu.Draggable = true
+danceMenu.Parent = gui
+
+local scroll = Instance.new("ScrollingFrame")
+scroll.Size = UDim2.new(1,-10,1,-10)
+scroll.Position = UDim2.fromOffset(5,5)
+scroll.BackgroundTransparency = 1
+scroll.ScrollBarThickness = 5
+scroll.CanvasSize = UDim2.new(0,0,0,850)
+scroll.Parent = danceMenu
+
+local dances = {
+    ["Dance 1"]="507771019",
+    ["Dance 2"]="507771955",
+    ["Dance 3"]="507772104",
+    ["Floss"]="5917459365",
+    ["Break Dance"]="5915648917",
+    ["Baby Dance"]="4265725525",
+    ["Dolphin Dance"]="5918726674",
+    ["Line Dance"]="4049037604",
+    ["Old Town Road"]="5937560570",
+    ["Rodeo Dance"]="5918728267",
+    ["Panini Dance"]="5915713518",
+    ["Dorky Dance"]="4212455378",
+    ["Shuffle"]="4349242221",
+    ["Robot"]="3338025566",
+    ["Monkey"]="3333499508",
+    ["Godlike"]="3337994105",
+    ["Stadium"]="3338055167",
+    ["Greatest"]="3338042785",
+    ["Side to Side"]="3333136415",
+    ["Top Rock"]="3361276673",
+    ["Around Town"]="3303391864",
+    ["Hype Dance"]="3695333486",
+    ["Cha Cha"]="3695322025",
+    ["Air Guitar"]="3695300085"
+}
+
+local function stopDance()
+    if currentTrack then
+        currentTrack:Stop()
+        currentTrack:Destroy()
+        currentTrack = nil
+    end
+end
+
+local function playDance(id)
+    local char = player.Character
+    if not char then return end
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    if not hum then return end
+
+    local animator = hum:FindFirstChildOfClass("Animator")
+    if not animator then
+        animator = Instance.new("Animator")
+        animator.Parent = hum
+    end
+
+    stopDance()
+
+    local anim = Instance.new("Animation")
+    anim.AnimationId = "rbxassetid://"..id
+
+    local success, track = pcall(function()
+        return animator:LoadAnimation(anim)
+    end)
+
+    if success and track then
+        currentTrack = track
+        track.Priority = Enum.AnimationPriority.Action
+        track:Play()
+    end
+end
+
+local index = 0
+for name,id in pairs(dances) do
+    local b = button(scroll,name,index*34,30)
+    b.Size = UDim2.new(1,-10,0,30)
+    b.Position = UDim2.fromOffset(5,index*34)
+    b.MouseButton1Click:Connect(function()
+        playDance(id)
+    end)
+    index += 1
+end
+
+local stopBtn = button(scroll,"STOP DANCE",index*34,35)
+stopBtn.MouseButton1Click:Connect(stopDance)
+
+scroll.CanvasSize = UDim2.new(0,0,0,(index+1)*35)
+
+danceBtn.MouseButton1Click:Connect(function()
+    danceMenu.Visible = not danceMenu.Visible
+end)
+
+-- FLING: local-only notice
+flingBtn.MouseButton1Click:Connect(function()
+    flingBtn.Text = "SERVER REQUIRED"
+    task.delay(2,function()
+        flingBtn.Text = "FLING ALL"
+    end)
+end)
+
+-- Mobile controls
+local mobileControls = Instance.new("Frame")
+mobileControls.Size = UDim2.new(1,0,0,150)
+mobileControls.Position = UDim2.new(0,0,1,-150)
+mobileControls.BackgroundTransparency = 1
+mobileControls.Visible = false
+mobileControls.Parent = gui
+
+local function touchButton(txt,pos,color,callback)
+    local b = Instance.new("TextButton")
+    b.Size = UDim2.fromOffset(55,55)
+    b.Position = pos
+    b.Text = txt
+    b.TextScaled = true
+    b.BackgroundColor3 = color
+    b.TextColor3 = Color3.new(1,1,1)
+    b.Parent = mobileControls
+
+    b.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.Touch
+        or input.UserInputType == Enum.UserInputType.MouseButton1 then
+            callback(true)
+        end
+    end)
+
+    b.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.Touch
+        or input.UserInputType == Enum.UserInputType.MouseButton1 then
+            callback(false)
+        end
+    end)
+end
+
+touchButton("↑",UDim2.new(0.5,-60,0,5),Color3.fromRGB(45,100,170),function(v) forwardPressed=v end)
+touchButton("↓",UDim2.new(0.5,-60,0,75),Color3.fromRGB(45,100,170),function(v) backwardPressed=v end)
+touchButton("←",UDim2.new(0.5,-125,0,40),Color3.fromRGB(45,100,170),function(v) leftPressed=v end)
+touchButton("→",UDim2.new(0.5,5,0,40),Color3.fromRGB(45,100,170),function(v) rightPressed=v end)
+touchButton("▲",UDim2.new(0,10,0,5),Color3.fromRGB(45,170,100),function(v) upPressed=v end)
+touchButton("▼",UDim2.new(0,10,0,75),Color3.fromRGB(170,45,45),function(v) downPressed=v end)
+
+-- Fly
+local function stopFly()
+    flying = false
+
+    local char = player.Character
+    if char then
+        local hum = char:FindFirstChildOfClass("Humanoid")
+        if hum then hum.PlatformStand = false end
+    end
+
+    if bodyVelocity then
+        bodyVelocity:Destroy()
+        bodyVelocity = nil
+    end
+
+    if bodyGyro then
+        bodyGyro:Destroy()
+        bodyGyro = nil
+    end
+
+    mobileControls.Visible = false
+    flyBtn.Text = "FLY: OFF"
+end
+
+local function startFly()
+    local char = player.Character
+    if not char then return end
+
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    if not hrp or not hum then return end
+
+    flying = true
+    hum.PlatformStand = true
+
+    bodyVelocity = Instance.new("BodyVelocity")
+    bodyVelocity.MaxForce = Vector3.new(1e6,1e6,1e6)
+    bodyVelocity.Velocity = Vector3.zero
+    bodyVelocity.Parent = hrp
+
+    bodyGyro = Instance.new("BodyGyro")
+    bodyGyro.MaxTorque = Vector3.new(1e6,1e6,1e6)
+    bodyGyro.P = 10000
+    bodyGyro.CFrame = hrp.CFrame
+    bodyGyro.Parent = hrp
+
+    mobileControls.Visible = isMobile
+    flyBtn.Text = "FLY: ON"
+end
+
+flyBtn.MouseButton1Click:Connect(function()
+    if flying then
+        stopFly()
+    else
+        startFly()
+    end
+end)
+
+speedUp.MouseButton1Click:Connect(function()
+    flySpeed = math.min(flySpeed+20,300)
+end)
+
+speedDown.MouseButton1Click:Connect(function()
+    flySpeed = math.max(flySpeed-20,20)
+end)
+
+-- Flight movement
+RunService.RenderStepped:Connect(function()
+    if not flying or not bodyVelocity or not bodyGyro then return end
+
+    local cam = workspace.CurrentCamera
+    if not cam then return end
+
+    local move = Vector3.zero
+
+    if forwardPressed then move += cam.CFrame.LookVector end
+    if backwardPressed then move -= cam.CFrame.LookVector end
+    if leftPressed then move -= cam.CFrame.RightVector end
+    if rightPressed then move += cam.CFrame.RightVector end
+    if upPressed then move += Vector3.new(0,1,0) end
+    if downPressed then move -= Vector3.new(0,1,0) end
+
+    if not isMobile then
+        if UIS:IsKeyDown(Enum.KeyCode.W) then move += cam.CFrame.LookVector end
+        if UIS:IsKeyDown(Enum.KeyCode.S) then move -= cam.CFrame.LookVector end
+        if UIS:IsKeyDown(Enum.KeyCode.A) then move -= cam.CFrame.RightVector end
+        if UIS:IsKeyDown(Enum.KeyCode.D) then move += cam.CFrame.RightVector end
+        if UIS:IsKeyDown(Enum.KeyCode.Space) then move += Vector3.new(0,1,0) end
+        if UIS:IsKeyDown(Enum.KeyCode.LeftControl) then move -= Vector3.new(0,1,0) end
+    end
+
+    if move.Magnitude > 0 then
+        move = move.Unit * flySpeed
+    end
+
+    bodyVelocity.Velocity = move
+    bodyGyro.CFrame = cam.CFrame
+end)
+
+-- Menu toggle
+local showBtn = Instance.new("TextButton")
+showBtn.Size = UDim2.fromOffset(50,50)
+showBtn.Position = UDim2.new(0,10,0.5,-25)
+showBtn.Text = "☰"
+showBtn.TextScaled = true
+showBtn.BackgroundColor3 = Color3.fromRGB(45,100,170)
+showBtn.TextColor3 = Color3.new(1,1,1)
+showBtn.Parent = gui
+
+showBtn.MouseButton1Click:Connect(function()
+    frame.Visible = not frame.Visible
+    if not frame.Visible then
+        danceMenu.Visible = false
+    end
+end)
+
+player.CharacterAdded:Connect(function()
+    stopFly()
+    stopDance()
+    forwardPressed = false
+    backwardPressed = false
+    leftPressed = false
+    rightPressed = false
+    upPressed = false
+    downPressed = false
+end)
+
+print("UniversalScript Loaded")
